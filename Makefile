@@ -19,6 +19,11 @@ SHARED_OBJS = $(BUILD_DIR)/Tensor.o \
               $(BUILD_DIR)/SparseAttention.o \
               $(BUILD_DIR)/SparseFFN.o \
               $(BUILD_DIR)/LinearTernary.o \
+              $(BUILD_DIR)/RMSNorm.o \
+              $(BUILD_DIR)/EmbeddingHead.o \
+              $(BUILD_DIR)/TransformerLayer.o \
+              $(BUILD_DIR)/Utils.o \
+              $(BUILD_DIR)/ModelManager.o \
               $(BUILD_DIR)/Config.o
 
 # Training-only objects
