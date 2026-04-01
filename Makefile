@@ -18,6 +18,7 @@ SHARED_OBJS = $(BUILD_DIR)/Tensor.o \
               $(BUILD_DIR)/SparseTernaryLinear.o \
               $(BUILD_DIR)/SparseAttention.o \
               $(BUILD_DIR)/SparseFFN.o \
+              $(BUILD_DIR)/LinearTernary.o \
               $(BUILD_DIR)/Config.o
 
 # Training-only objects

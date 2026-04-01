@@ -14,7 +14,7 @@ public:
     std::vector<std::shared_ptr<Tensor>> parameters() override      { return {weights}; }
     std::vector<std::shared_ptr<Tensor>> param_gradients() override { return {weight_grads}; }
     void clear_gradients()  override { weight_grads.reset(); }
-    void clear_activations() override {}
+    void clear_activations() override;
 
     void save(std::ostream& os) const override;
     void load(std::istream& is) override;
@@ -27,6 +27,10 @@ private:
     std::shared_ptr<Tensor> weight_grads; // FP32 or BF16 for accumulation
     
     std::unique_ptr<Kernel> matmulKernel;
+    std::unique_ptr<Kernel> bwdInputKernel;
+    std::unique_ptr<Kernel> bwdWeightKernel;
+    
+    std::shared_ptr<Tensor> last_input;
     
     void initialize_weights();
 };

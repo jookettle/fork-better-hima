@@ -499,3 +499,70 @@ kernel void attn_bwd_dk_matmul(
         sum += ds[h * p.S * p.S + qi * p.S + ki] * Q[h * p.S * p.hd + qi * p.hd + d];
     dK[h * p.S * p.hd + ki * p.hd + d] = sum;
 }
+
+// ─── Dense Ternary ───────────────────────────────────────────────────────────
+
+struct DenseTernaryParams { uint batch_size, in_features, out_features; float scale; };
+
+kernel void dense_ternary_matmul(
+    device float       *out    [[ buffer(0) ]],
+    device const float *input  [[ buffer(1) ]],
+    device const uchar *weights[[ buffer(2) ]], // 2-bit packed, 4 per byte
+    constant DenseTernaryParams &p [[ buffer(3) ]],
+    uint2 id [[ thread_position_in_grid ]])
+{
+    if (id.x >= p.out_features || id.y >= p.batch_size) return;
+    float sum = 0.0f;
+    uint in_off = id.y * p.in_features;
+    uint w_row_off = id.x * p.in_features;
+    for (uint i = 0; i < p.in_features; ++i) {
+        uint byte_idx = (w_row_off + i) / 4;
+        uint bit_pos = ((w_row_off + i) % 4) * 2;
+        uchar b = weights[byte_idx];
+        int w_val = 0;
+        uchar bits = (b >> bit_pos) & 0x3;
+        if (bits == 1) w_val = 1;
+        else if (bits == 2) w_val = -1;
+        sum += input[in_off + i] * (float)w_val;
+    }
+    out[id.y * p.out_features + id.x] = sum * p.scale;
+}
+
+kernel void dense_ternary_backward_input(
+    device float       *grad_in  [[ buffer(0) ]],
+    device const float *grad_out [[ buffer(1) ]],
+    device const uchar *weights  [[ buffer(2) ]],
+    constant DenseTernaryParams &p [[ buffer(3) ]],
+    uint2 id [[ thread_position_in_grid ]])
+{
+    if (id.x >= p.in_features || id.y >= p.batch_size) return;
+    float sum = 0.0f;
+    uint go_off = id.y * p.out_features;
+    for (uint o = 0; o < p.out_features; ++o) {
+        uint w_idx = o * p.in_features + id.x;
+        uint byte_idx = w_idx / 4;
+        uint bit_pos = (w_idx % 4) * 2;
+        uchar b = weights[byte_idx];
+        int w_val = 0;
+        uchar bits = (b >> bit_pos) & 0x3;
+        if (bits == 1) w_val = 1;
+        else if (bits == 2) w_val = -1;
+        sum += grad_out[go_off + o] * (float)w_val;
+    }
+    grad_in[id.y * p.in_features + id.x] = sum * p.scale;
+}
+
+kernel void dense_ternary_backward_weight(
+    device float       *grad_weights [[ buffer(0) ]], // FP32 grad
+    device const float *grad_out     [[ buffer(1) ]],
+    device const float *input        [[ buffer(2) ]],
+    constant DenseTernaryParams &p   [[ buffer(3) ]],
+    uint2 id [[ thread_position_in_grid ]])
+{
+    if (id.x >= p.in_features || id.y >= p.out_features) return;
+    float sum = 0.0f;
+    for (uint b = 0; b < p.batch_size; ++b) {
+        sum += grad_out[b * p.out_features + id.y] * input[b * p.in_features + id.x];
+    }
+    grad_weights[id.y * p.in_features + id.x] = sum * p.scale;
+}
